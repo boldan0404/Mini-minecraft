@@ -37,15 +37,17 @@ export class GUI implements IGUI {
 
   private animation: MinecraftAnimation;
   
-  private Adown: boolean;
-  private Wdown: boolean;
-  private Sdown: boolean;
-  private Ddown: boolean;
+  // Key states
+  private Adown: boolean = false;
+  private Wdown: boolean = false;
+  private Sdown: boolean = false;
+  private Ddown: boolean = false;
+  
+  // Focus management
+  private canvasHasFocus: boolean = false;
 
   /**
-   *
-   * @param canvas required to get the width and height of the canvas
-   * @param animation required as a back pointer for some of the controls
+   * Constructor
    */
   constructor(canvas: HTMLCanvasElement, animation: MinecraftAnimation) {
     this.height = canvas.height;
@@ -59,6 +61,9 @@ export class GUI implements IGUI {
     this.reset();
     
     this.registerEventListeners(canvas);
+    
+    // Make sure canvas can get focus
+    canvas.tabIndex = 1;
   }
 
   /**
@@ -74,22 +79,12 @@ export class GUI implements IGUI {
       0.1,
       1000.0
     );
-  }
-
-  /**
-   * Sets the GUI's camera to the given camera
-   * @param cam a new camera
-   */
-  public setCamera(
-    pos: Vec3,
-    target: Vec3,
-    upDir: Vec3,
-    fov: number,
-    aspect: number,
-    zNear: number,
-    zFar: number
-  ) {
-    this.camera = new Camera(pos, target, upDir, fov, aspect, zNear, zFar);
+    
+    // Reset key states
+    this.Adown = false;
+    this.Wdown = false;
+    this.Sdown = false;
+    this.Ddown = false;
   }
 
   /**
@@ -115,134 +110,137 @@ export class GUI implements IGUI {
     this.prevY = mouse.screenY;
     this.dragging = true;
   }
+  
   public dragEnd(mouse: MouseEvent): void {
-      this.dragging = false;
+    this.dragging = false;
   }
   
   /**
-   * The callback function for a drag event.
-   * This event happens after dragStart and
-   * before dragEnd.
-   * @param mouse
+   * Mouse drag handler
    */
   public drag(mouse: MouseEvent): void {
-    let x = mouse.offsetX;
-    let y = mouse.offsetY;
     const dx = mouse.screenX - this.prevX;
     const dy = mouse.screenY - this.prevY;
     this.prevX = mouse.screenX;
     this.prevY = mouse.screenY;
-    if(this.dragging)
-    {
-        this.camera.rotate(new Vec3([0, 1, 0]), -GUI.rotationSpeed*dx);
-        this.camera.rotate(this.camera.right(), -GUI.rotationSpeed*dy);
+    
+    if (this.dragging) {
+      this.camera.rotate(new Vec3([0, 1, 0]), -GUI.rotationSpeed * dx);
+      this.camera.rotate(this.camera.right(), -GUI.rotationSpeed * dy);
     }
-  }
-  
-  public walkDir(): Vec3
-  {
-      let answer = new Vec3;
-      if(this.Wdown)
-        answer.add(this.camera.forward().negate());
-      if(this.Adown)
-        answer.add(this.camera.right().negate());
-      if(this.Sdown)
-        answer.add(this.camera.forward());
-      if(this.Ddown)
-        answer.add(this.camera.right());
-      answer.y = 0;
-      answer.normalize();
-      return answer;
   }
   
   /**
-   * Callback function for a key press event
-   * @param key
+   * Get walk direction from key state
+   */
+  public walkDir(): Vec3 {
+    const forward = this.camera.forward().negate();
+    forward.y = 0;
+    if (forward.length() > 0.001) forward.normalize();
+    
+    const right = this.camera.right();
+    right.y = 0;
+    if (right.length() > 0.001) right.normalize();
+    
+    let direction = new Vec3([0, 0, 0]);
+    
+    // Apply movement based on keys
+    if (this.Wdown) direction.add(forward);
+    if (this.Sdown) direction.add(forward.negate());
+    if (this.Adown) direction.add(right.negate());
+    if (this.Ddown) direction.add(right);
+    
+    // Normalize if non-zero
+    if (direction.length() > 0.001) {
+      direction.normalize();
+    }
+    
+    return direction;
+  }
+  
+  /**
+   * Keydown handler
    */
   public onKeydown(key: KeyboardEvent): void {
-    switch (key.code) {
-      case "KeyW": {
-        this.Wdown = true;
-        break;
-      }
-      case "KeyA": {
-        this.Adown = true;
-        break;
-      }
-      case "KeyS": {
-        this.Sdown = true;
-        break;
-      }
-      case "KeyD": {
-        this.Ddown = true;
-        break;
-      }
-      case "KeyR": {
-        this.animation.reset();
-        break;
-      }
-      case "Space": {
-        this.animation.jump();
-        break;
-      }
-      default: {
-        console.log("Key : '", key.code, "' was pressed.");
-        break;
+    // Always capture important keys
+    if (key.code === "KeyW" || key.code === "KeyA" || 
+        key.code === "KeyS" || key.code === "KeyD" ||
+        key.code === "Space" || key.code === "KeyR") {
+      key.preventDefault();
+      
+      switch (key.code) {
+        case "KeyW": this.Wdown = true; break;
+        case "KeyA": this.Adown = true; break;
+        case "KeyS": this.Sdown = true; break;
+        case "KeyD": this.Ddown = true; break;
+        case "KeyR": this.animation.reset(); break;
+        case "Space": this.animation.jump(); break;
       }
     }
   }
   
+  /**
+   * Keyup handler
+   */
   public onKeyup(key: KeyboardEvent): void {
     switch (key.code) {
-      case "KeyW": {
-        this.Wdown = false;
-        break;
-      }
-      case "KeyA": {
-        this.Adown = false;
-        break;
-      }
-      case "KeyS": {
-        this.Sdown = false;
-        break;
-      }
-      case "KeyD": {
-        this.Ddown = false;
-        break;
-      }
+      case "KeyW": this.Wdown = false; break;
+      case "KeyA": this.Adown = false; break;
+      case "KeyS": this.Sdown = false; break;
+      case "KeyD": this.Ddown = false; break;
     }
   }  
 
   /**
-   * Registers all event listeners for the GUI
-   * @param canvas The canvas being used
+   * Register all event listeners
    */
   private registerEventListeners(canvas: HTMLCanvasElement): void {
-    /* Event listener for key controls */
-    window.addEventListener("keydown", (key: KeyboardEvent) =>
-      this.onKeydown(key)
-    );
+    // Global key events - make sure to bind 'this'
+    window.addEventListener("keydown", this.onKeydown.bind(this));
+    window.addEventListener("keyup", this.onKeyup.bind(this));
     
-    window.addEventListener("keyup", (key: KeyboardEvent) =>
-      this.onKeyup(key)
-    );
-
-    /* Event listener for mouse controls */
-    canvas.addEventListener("mousedown", (mouse: MouseEvent) =>
-      this.dragStart(mouse)
-    );
-
-    canvas.addEventListener("mousemove", (mouse: MouseEvent) =>
-      this.drag(mouse)
-    );
-
-    canvas.addEventListener("mouseup", (mouse: MouseEvent) =>
-      this.dragEnd(mouse)
-    );
+    // Canvas focus events
+    canvas.addEventListener("focus", () => {
+      this.canvasHasFocus = true;
+    });
     
-    /* Event listener to stop the right click menu */
-    canvas.addEventListener("contextmenu", (event: any) =>
-      event.preventDefault()
-    );
+    canvas.addEventListener("blur", () => {
+      this.canvasHasFocus = false;
+      // Reset all keys when losing focus
+      this.Wdown = false;
+      this.Adown = false;
+      this.Sdown = false;
+      this.Ddown = false;
+    });
+    
+    // Mouse events
+    canvas.addEventListener("mousedown", (mouse) => {
+      canvas.focus(); // Get focus when clicked
+      this.dragStart(mouse);
+    });
+    
+    canvas.addEventListener("mousemove", this.drag.bind(this));
+    canvas.addEventListener("mouseup", this.dragEnd.bind(this));
+    canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+  }
+  
+  // For testing
+  public setKeyState(key: string, state: boolean): void {
+    switch (key) {
+      case "W": this.Wdown = state; break;
+      case "A": this.Adown = state; break;
+      case "S": this.Sdown = state; break;
+      case "D": this.Ddown = state; break;
+    }
+  }
+  
+  // Get key state for debugging
+  public getKeyState(): any {
+    return {
+      W: this.Wdown,
+      A: this.Adown,
+      S: this.Sdown,
+      D: this.Ddown
+    };
   }
 }

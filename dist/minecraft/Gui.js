@@ -6,11 +6,16 @@ import { Vec3 } from "../lib/TSM.js";
  */
 export class GUI {
     /**
-     *
-     * @param canvas required to get the width and height of the canvas
-     * @param animation required as a back pointer for some of the controls
+     * Constructor
      */
     constructor(canvas, animation) {
+        // Key states
+        this.Adown = false;
+        this.Wdown = false;
+        this.Sdown = false;
+        this.Ddown = false;
+        // Focus management
+        this.canvasHasFocus = false;
         this.height = canvas.height;
         this.width = canvas.width;
         this.prevX = 0;
@@ -19,19 +24,19 @@ export class GUI {
         this.animation = animation;
         this.reset();
         this.registerEventListeners(canvas);
+        // Make sure canvas can get focus
+        canvas.tabIndex = 1;
     }
     /**
      * Resets the state of the GUI
      */
     reset() {
         this.camera = new Camera(new Vec3([0, 100, 0]), new Vec3([0, 100, -1]), new Vec3([0, 1, 0]), 45, this.width / this.height, 0.1, 1000.0);
-    }
-    /**
-     * Sets the GUI's camera to the given camera
-     * @param cam a new camera
-     */
-    setCamera(pos, target, upDir, fov, aspect, zNear, zFar) {
-        this.camera = new Camera(pos, target, upDir, fov, aspect, zNear, zFar);
+        // Reset key states
+        this.Adown = false;
+        this.Wdown = false;
+        this.Sdown = false;
+        this.Ddown = false;
     }
     /**
      * Returns the view matrix of the camera
@@ -57,14 +62,9 @@ export class GUI {
         this.dragging = false;
     }
     /**
-     * The callback function for a drag event.
-     * This event happens after dragStart and
-     * before dragEnd.
-     * @param mouse
+     * Mouse drag handler
      */
     drag(mouse) {
-        let x = mouse.offsetX;
-        let y = mouse.offsetY;
         const dx = mouse.screenX - this.prevX;
         const dy = mouse.screenY - this.prevY;
         this.prevX = mouse.screenX;
@@ -74,90 +74,137 @@ export class GUI {
             this.camera.rotate(this.camera.right(), -GUI.rotationSpeed * dy);
         }
     }
+    /**
+     * Get walk direction from key state
+     */
     walkDir() {
-        let answer = new Vec3;
+        const forward = this.camera.forward().negate();
+        forward.y = 0;
+        if (forward.length() > 0.001)
+            forward.normalize();
+        const right = this.camera.right();
+        right.y = 0;
+        if (right.length() > 0.001)
+            right.normalize();
+        let direction = new Vec3([0, 0, 0]);
+        // Apply movement based on keys
         if (this.Wdown)
-            answer.add(this.camera.forward().negate());
-        if (this.Adown)
-            answer.add(this.camera.right().negate());
+            direction.add(forward);
         if (this.Sdown)
-            answer.add(this.camera.forward());
+            direction.add(forward.negate());
+        if (this.Adown)
+            direction.add(right.negate());
         if (this.Ddown)
-            answer.add(this.camera.right());
-        answer.y = 0;
-        answer.normalize();
-        return answer;
+            direction.add(right);
+        // Normalize if non-zero
+        if (direction.length() > 0.001) {
+            direction.normalize();
+        }
+        return direction;
     }
     /**
-     * Callback function for a key press event
-     * @param key
+     * Keydown handler
      */
     onKeydown(key) {
-        switch (key.code) {
-            case "KeyW": {
-                this.Wdown = true;
-                break;
-            }
-            case "KeyA": {
-                this.Adown = true;
-                break;
-            }
-            case "KeyS": {
-                this.Sdown = true;
-                break;
-            }
-            case "KeyD": {
-                this.Ddown = true;
-                break;
-            }
-            case "KeyR": {
-                this.animation.reset();
-                break;
-            }
-            case "Space": {
-                this.animation.jump();
-                break;
-            }
-            default: {
-                console.log("Key : '", key.code, "' was pressed.");
-                break;
-            }
-        }
-    }
-    onKeyup(key) {
-        switch (key.code) {
-            case "KeyW": {
-                this.Wdown = false;
-                break;
-            }
-            case "KeyA": {
-                this.Adown = false;
-                break;
-            }
-            case "KeyS": {
-                this.Sdown = false;
-                break;
-            }
-            case "KeyD": {
-                this.Ddown = false;
-                break;
+        // Always capture important keys
+        if (key.code === "KeyW" || key.code === "KeyA" ||
+            key.code === "KeyS" || key.code === "KeyD" ||
+            key.code === "Space" || key.code === "KeyR") {
+            key.preventDefault();
+            switch (key.code) {
+                case "KeyW":
+                    this.Wdown = true;
+                    break;
+                case "KeyA":
+                    this.Adown = true;
+                    break;
+                case "KeyS":
+                    this.Sdown = true;
+                    break;
+                case "KeyD":
+                    this.Ddown = true;
+                    break;
+                case "KeyR":
+                    this.animation.reset();
+                    break;
+                case "Space":
+                    this.animation.jump();
+                    break;
             }
         }
     }
     /**
-     * Registers all event listeners for the GUI
-     * @param canvas The canvas being used
+     * Keyup handler
+     */
+    onKeyup(key) {
+        switch (key.code) {
+            case "KeyW":
+                this.Wdown = false;
+                break;
+            case "KeyA":
+                this.Adown = false;
+                break;
+            case "KeyS":
+                this.Sdown = false;
+                break;
+            case "KeyD":
+                this.Ddown = false;
+                break;
+        }
+    }
+    /**
+     * Register all event listeners
      */
     registerEventListeners(canvas) {
-        /* Event listener for key controls */
-        window.addEventListener("keydown", (key) => this.onKeydown(key));
-        window.addEventListener("keyup", (key) => this.onKeyup(key));
-        /* Event listener for mouse controls */
-        canvas.addEventListener("mousedown", (mouse) => this.dragStart(mouse));
-        canvas.addEventListener("mousemove", (mouse) => this.drag(mouse));
-        canvas.addEventListener("mouseup", (mouse) => this.dragEnd(mouse));
-        /* Event listener to stop the right click menu */
+        // Global key events - make sure to bind 'this'
+        window.addEventListener("keydown", this.onKeydown.bind(this));
+        window.addEventListener("keyup", this.onKeyup.bind(this));
+        // Canvas focus events
+        canvas.addEventListener("focus", () => {
+            this.canvasHasFocus = true;
+        });
+        canvas.addEventListener("blur", () => {
+            this.canvasHasFocus = false;
+            // Reset all keys when losing focus
+            this.Wdown = false;
+            this.Adown = false;
+            this.Sdown = false;
+            this.Ddown = false;
+        });
+        // Mouse events
+        canvas.addEventListener("mousedown", (mouse) => {
+            canvas.focus(); // Get focus when clicked
+            this.dragStart(mouse);
+        });
+        canvas.addEventListener("mousemove", this.drag.bind(this));
+        canvas.addEventListener("mouseup", this.dragEnd.bind(this));
         canvas.addEventListener("contextmenu", (event) => event.preventDefault());
+    }
+    // For testing
+    setKeyState(key, state) {
+        switch (key) {
+            case "W":
+                this.Wdown = state;
+                break;
+            case "A":
+                this.Adown = state;
+                break;
+            case "S":
+                this.Sdown = state;
+                break;
+            case "D":
+                this.Ddown = state;
+                break;
+        }
+    }
+    // Get key state for debugging
+    getKeyState() {
+        return {
+            W: this.Wdown,
+            A: this.Adown,
+            S: this.Sdown,
+            D: this.Ddown
+        };
     }
 }
 GUI.rotationSpeed = 0.01;
