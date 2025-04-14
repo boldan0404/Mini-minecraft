@@ -91,7 +91,66 @@ export const perlinCubeFSText = `
         // Scale the result to approximately [-0.7, 0.7] range and then to [0, 1]
         return finalMix * 0.7071 + 0.5;
     }
+
+    // Step 4: Add shader support for new block types (wood and leaves)
+  // This should be added to the perlinCubeFSText variable in Shaders.js
+  
+  
+   // Wood texture procedural function
+    vec3 woodTexture(vec2 uv, vec3 position) {
+      // Wood colors
+      vec3 lightWood = vec3(0.6, 0.4, 0.2);
+      vec3 darkWood = vec3(0.3, 0.2, 0.1);
+      
+      // Create rings based on distance from center
+      float distX = position.x - floor(position.x + 0.5);
+      float distZ = position.z - floor(position.z + 0.5);
+      float distFromCenter = sqrt(distX * distX + distZ * distZ);
+      
+      // Add some noise to the rings
+      float noiseScale = 8.0;
+      float noise = perlin(uv * 10.0, 111.222, noiseScale) * 0.1;
+      
+      // Create ring pattern
+      float ringPattern = sin((distFromCenter * 10.0 + position.y * 0.2 + noise) * 6.28318) * 0.5 + 0.5;
+      
+      // Mix light and dark wood colors based on the ring pattern
+      vec3 color = mix(lightWood, darkWood, ringPattern);
+      
+      // Add some noise variation to make it more natural
+      float detailNoise = perlin(uv * 20.0, 333.444, 15.0);
+      color *= 0.9 + detailNoise * 0.2;
+      
+      return color;
+    }
     
+    // Leaf texture procedural function
+    vec3 leafTexture(vec2 uv, vec3 position) {
+      // Base colors for leaves - green with variations
+      vec3 lightLeaf = vec3(0.4, 0.6, 0.2);
+      vec3 darkLeaf = vec3(0.2, 0.4, 0.1);
+      
+      // Create veins and leaf structure with noise
+      float noise1 = perlin(uv, 777.888, 6.0);
+      float noise2 = perlin(uv * 3.0, 999.000, 12.0);
+      
+      // Combine noises for natural-looking pattern
+      float pattern = noise1 * 0.7 + noise2 * 0.3;
+      
+      // Mix colors based on pattern
+      vec3 color = mix(darkLeaf, lightLeaf, pattern);
+      
+      // Add small random variations
+      float variation = perlin(uv * 25.0, 123.456 + position.x * 7.89, 20.0);
+      color *= 0.9 + variation * 0.2;
+      
+      // Animate subtle wind movement
+      float windEffect = sin(position.x * 0.1 + position.z * 0.1 + uTime * 0.01) * 0.05;
+      color *= 0.95 + windEffect;
+      
+      return color;
+    }
+     
     // Procedural texture for grass blocks
     vec3 grassTexture(vec2 uv, vec3 position) {
         // Base green color
@@ -242,9 +301,15 @@ export const perlinCubeFSText = `
         } else if (vBlockType < 2.5) {
             // Type 2: Water
             kd = waterTexture(adjustedUV, wsPos.xyz);
-        } else {
+        } else if (vBlockType < 3.5) {
             // Type 3: Snow
             kd = snowTexture(adjustedUV, wsPos.xyz);
+        } else if (vBlockType < 4.5) {
+            // Type 4: Wood
+            kd = woodTexture(adjustedUV, wsPos.xyz);
+        } else {
+            // Type 5: Leaves
+            kd = leafTexture(adjustedUV, wsPos.xyz);
         }
         
         // Lighting calculation
