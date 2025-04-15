@@ -38,7 +38,8 @@ export const perlinCubeFSText = `
     varying vec2 uv;
     varying float vBlockType;
     varying vec3 modelPos;
-    
+     //add for day and night
+    uniform float uTimeOfDay; // Range [0.0, 1.0] where 0 is midnight, 0.5 is noon
     // Random and noise utility functions
     float random(in vec2 pt, in float seed) {
         return fract(sin((seed + dot(pt.xy, vec2(12.9898, 78.233)))) * 43758.5453123);
@@ -311,9 +312,11 @@ export const perlinCubeFSText = `
             // Type 5: Leaves
             kd = leafTexture(adjustedUV, wsPos.xyz);
         }
+         float ambientStrength = 0.2 + 0.8 * max(0.0, sin(uTimeOfDay * 3.14159));
         
         // Lighting calculation
-        vec3 ka = kd * 0.3; // Ambient is based on diffuse
+        // vec3 ka = kd * 0.3; // Ambient is based on diffuse
+        vec3 ka = kd * ambientStrength;
         
         /* Compute light fall off */
         vec4 lightDirection = uLightPos - wsPos;
