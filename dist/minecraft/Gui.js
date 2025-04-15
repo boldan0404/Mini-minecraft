@@ -109,7 +109,8 @@ export class GUI {
         // Always capture important keys
         if (key.code === "KeyW" || key.code === "KeyA" ||
             key.code === "KeyS" || key.code === "KeyD" ||
-            key.code === "Space" || key.code === "KeyR") {
+            key.code === "Space" || key.code === "KeyR" ||
+            key.code === "BracketLeft" || key.code === "BracketRight") {
             key.preventDefault();
             switch (key.code) {
                 case "KeyW":
@@ -129,6 +130,12 @@ export class GUI {
                     break;
                 case "Space":
                     this.animation.jump();
+                    break;
+                case "BracketLeft":
+                    this.animation.adjustCycleSpeed(-0.005); // slow down
+                    break;
+                case "BracketRight":
+                    this.animation.adjustCycleSpeed(0.005); // speed up
                     break;
             }
         }

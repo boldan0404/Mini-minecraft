@@ -13,6 +13,9 @@ export class MinecraftAnimation extends CanvasAnimation {
         this.gravity = 9.8;
         this.jumpVelocity = 10.0;
         this.deltaTime = 0.016; // 60 FPS
+        // day and night
+        this.timeOfDay = 0.25; // Start at sunrise
+        this.cycleSpeed = 0.01; // Control how fast time changes per frame
         this.canvas2d = document.getElementById("textCanvas");
         this.ctx = Debugger.makeDebugContext(this.ctx);
         let gl = this.ctx;
@@ -32,6 +35,38 @@ export class MinecraftAnimation extends CanvasAnimation {
         this.backgroundColor = new Vec4([0.5, 0.8, 1.0, 1.0]); // Sky blue color
         // Generate initial chunk layout
         this.generateInitialChunks();
+    }
+    updateDayNightCycle() {
+        // Increment time based on speed
+        this.timeOfDay += this.cycleSpeed;
+        // Wrap around after 1.0 (24-hour cycle)
+        if (this.timeOfDay > 1.0) {
+            this.timeOfDay -= 1.0;
+        }
+        // Compute sun position
+        const angle = this.timeOfDay * 2.0 * Math.PI;
+        const sunX = Math.cos(angle) * 1000.0;
+        const sunY = Math.sin(angle) * 1000.0;
+        const sunZ = 100.0;
+        // Simulate sunlight brightness
+        const brightness = Math.max(0.2, sunY / 1000.0); // Clamp night brightness
+        const ambientColor = new Vec4([brightness * 0.4, brightness * 0.4, brightness * 0.5, 1.0]);
+        // Update global light position (for shaders)
+        this.lightPosition = new Vec4([sunX, sunY, sunZ, 1.0]);
+        // 🌈 Smoothly blend between night and day sky colors
+        const nightSky = new Vec4([0.05, 0.02, 0.1, 1.0]); // deep purple
+        const daySky = new Vec4([0.5, 0.8, 1.0, 1.0]); // sky blue
+        const blend = Math.max(0, Math.sin(this.timeOfDay * Math.PI));
+        this.backgroundColor = new Vec4([
+            daySky.x * blend + nightSky.x * (1 - blend),
+            daySky.y * blend + nightSky.y * (1 - blend),
+            daySky.z * blend + nightSky.z * (1 - blend),
+            1.0
+        ]);
+    }
+    adjustCycleSpeed(delta) {
+        this.cycleSpeed = Math.max(0.0, this.cycleSpeed + delta);
+        console.log(`Cycle speed now: ${this.cycleSpeed.toFixed(4)}`);
     }
     /**
      * Setup the simulation. This can be called again to reset the program.
@@ -267,6 +302,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     draw() {
         // Update time for animated effects
         this.time += 1.0;
+        this.updateDayNightCycle();
         // Update chunks if needed
         this.updateChunks();
         // Calculate terrain height beneath player
@@ -352,6 +388,10 @@ export class MinecraftAnimation extends CanvasAnimation {
         });
         this.blankCubeRenderPass.addUniform("uView", (gl, loc) => {
             gl.uniformMatrix4fv(loc, false, new Float32Array(this.gui.viewMatrix().all()));
+        });
+        // add day and night cycle
+        this.blankCubeRenderPass.addUniform("uTimeOfDay", (gl, loc) => {
+            gl.uniform1f(loc, this.timeOfDay);
         });
         this.blankCubeRenderPass.setDrawData(this.ctx.TRIANGLES, this.cubeGeometry.indicesFlat().length, this.ctx.UNSIGNED_INT, 0);
         this.blankCubeRenderPass.setup();

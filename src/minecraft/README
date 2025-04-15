@@ -1,0 +1,13 @@
+
+
+
+Extra Credit:
+
+1. Fractal Trees: The trees are generated using the class Fractal Tree. We implemented several different 
+types of fractal trees, so we were hoping to get beyond the given extra credit if that is allowed. You can try each different
+type of fractal generation by changing Line _________. The different types of fractals are:
+
+
+
+
+2. We also implemented a day and night cycle, which can be toggled to faster and slower by using the "[" and "]" keys.
