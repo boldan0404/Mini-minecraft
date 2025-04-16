@@ -1,5 +1,9 @@
 Surya Chokkar (sc62736) and Ann Yue
 
+
+Partial Credit:
+Our collision detections sometimes still fails, resulting in falling through the ground. It works in some directions but falls through in others, so hoping to get partial credit here if possible
+
 Extra Credit:
 
 1. Fractal Trees: The trees are generated using the class Fractal Tree. We implemented several different 
@@ -20,4 +24,4 @@ Then, comment out "  const canvasAnimation: MinecraftAnimation = new MinecraftAn
 and uncomment "  //const canvasAnimation = createVolumetricMinecraft(canvas);"
 If you now rerun the program, you will see caves and ores spawn in using additional textures and terrain opportunities.
 
-5. Finally, we implemented time-varying perlin noise, as is evident in the wind blowing the grass, trees strobing, bark modulating, water crystalling, and cobblestone shimmering
+5. Finally, we implemented time-varying perlin noise, in the wind blowing the grass, trees strobing, bark modulating, water crystalling, and cobblestone shimmering
