@@ -614,6 +614,85 @@ export class MinecraftAnimation extends CanvasAnimation {
         // Update camera position with player position
         this.gui.getCamera().setPos(this.playerPosition);
     }
+    interactWithBlock(isRemove = false) {
+        // Get the camera for ray casting
+        const camera = this.gui.getCamera();
+        const cameraPos = camera.pos();
+        const cameraDir = camera.forward().negate();
+        // Normalize direction
+        cameraDir.normalize();
+        // Ray cast parameters
+        const maxDistance = 5.0; // Maximum reach distance
+        const stepSize = 0.1; // Ray step size
+        // Ray marching to find target block
+        for (let distance = 0; distance <= maxDistance; distance += stepSize) {
+            const rayPos = new Vec3([
+                cameraPos.x + cameraDir.x * distance,
+                cameraPos.y + cameraDir.y * distance,
+                cameraPos.z + cameraDir.z * distance
+            ]);
+            // Find the chunk containing this point
+            const chunkX = Math.floor(rayPos.x / this.chunkSize) * this.chunkSize;
+            const chunkZ = Math.floor(rayPos.z / this.chunkSize) * this.chunkSize;
+            const chunkKey = `${chunkX},${chunkZ}`;
+            // If chunk exists, check for a block
+            const chunk = this.chunks.get(chunkKey);
+            if (chunk) {
+                // Get terrain height at this position
+                const terrainHeight = chunk.getHeightAt(rayPos.x, rayPos.z);
+                // If we hit a block (ray is below terrain)
+                if (terrainHeight >= 0 && rayPos.y <= terrainHeight) {
+                    if (isRemove) {
+                        // Remove block - create a small crater
+                        this.modifyTerrain(rayPos.x, rayPos.z, -1, 1);
+                        return true;
+                    }
+                    else {
+                        // Place block - create a small mound
+                        this.modifyTerrain(rayPos.x, rayPos.z, 1, 1);
+                        return true;
+                    }
+                }
+            }
+        }
+        return false; // No interaction happened
+    }
+    // Helper method to modify terrain
+    modifyTerrain(centerX, centerZ, heightChange, radius) {
+        // Find the chunk containing the center
+        const chunkX = Math.floor(centerX / this.chunkSize) * this.chunkSize;
+        const chunkZ = Math.floor(centerZ / this.chunkSize) * this.chunkSize;
+        const chunkKey = `${chunkX},${chunkZ}`;
+        const chunk = this.chunks.get(chunkKey);
+        if (!chunk)
+            return;
+        // This is a simple implementation that just affects a circular area
+        // You may want to implement a more sophisticated method for terrain modification
+        // Get the local coordinates within the chunk
+        const localX = Math.floor(centerX - (chunkX - chunk.getSize() / 2));
+        const localZ = Math.floor(centerZ - (chunkZ - chunk.getSize() / 2));
+        // Get current height
+        const currentHeight = chunk.getHeightAt(centerX, centerZ);
+        // For a simple implementation, we'll just recreate the chunk with modified terrain
+        // In a more advanced implementation, you'd want to update just the affected blocks
+        // Signal that the chunk needs updating
+        // You'll need to add a method to handle rebuilding the chunk geometry
+        this.updateChunkGeometry(chunkKey);
+    }
+    // Method to update chunk geometry after terrain modification
+    updateChunkGeometry(chunkKey) {
+        // This method should rebuild the chunk's cube positions and block types
+        // The specific implementation depends on your chunk generation code
+        // For a simple approach, you could just regenerate the chunk
+        const chunk = this.chunks.get(chunkKey);
+        if (!chunk)
+            return;
+        // Force regeneration of cube data
+        // You'll need to add this method to your Chunk class
+        // or find another way to update the chunk geometry
+        // chunk.regenerateCubes();
+        // After modification, update player position if needed to avoid falling through or getting stuck
+    }
     getTerrainHeightAtPosition(x, z) {
         const chunkX = Math.floor(x / this.chunkSize) * this.chunkSize;
         const chunkZ = Math.floor(z / this.chunkSize) * this.chunkSize;
@@ -798,6 +877,7 @@ export class MinecraftAnimation extends CanvasAnimation {
 export function initializeCanvas() {
     const canvas = document.getElementById("glCanvas");
     /* Start drawing */
+    //const canvasAnimation = createVolumetricMinecraft(canvas);
     const canvasAnimation = new MinecraftAnimation(canvas);
     canvasAnimation.start();
 }

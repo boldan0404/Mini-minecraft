@@ -13,39 +13,41 @@ import { RenderPass } from "../lib/webglutils/RenderPass.js";
 import { Camera } from "../lib/webglutils/Camera.js";
 import { Cube } from "./Cube.js";
 import { Chunk } from "./Chunk.js";
+import { createVolumetricMinecraft } from "./VolumetricIntegration.js";
+
 
 export class MinecraftAnimation extends CanvasAnimation {
-  private gui: GUI;
+  protected gui: GUI;
   
   // Chunks management
-  private chunks: Map<string, Chunk>;
-  private currentChunk: string; // Key for current chunk
-  private chunkSize: number;
+  protected chunks: Map<string, Chunk>;
+  protected currentChunk: string; // Key for current chunk
+  protected chunkSize: number;
   
   /*  Cube Rendering */
-  private cubeGeometry: Cube;
-  private blankCubeRenderPass: RenderPass;
+  protected cubeGeometry: Cube;
+  protected blankCubeRenderPass: RenderPass;
 
   /* Global Rendering Info */
-  private lightPosition: Vec4;
-  private backgroundColor: Vec4;
+  protected lightPosition: Vec4;
+  protected backgroundColor: Vec4;
 
-  private canvas2d: HTMLCanvasElement;
+  protected canvas2d: HTMLCanvasElement;
   
   // Player's head position in world coordinate.
   // Player should extend two units down from this location, and 0.4 units radially.
-  private playerPosition: Vec3;
-  private playerVelocity: Vec3;
-  private isOnGround: boolean;
-  private time: number;
+  protected playerPosition: Vec3;
+  protected playerVelocity: Vec3;
+  protected isOnGround: boolean;
+  protected time: number;
 
   // Gravity and jump parameters
-  private readonly gravity: number = 9.8;
-  private readonly jumpVelocity: number = 10.0;
-  private readonly deltaTime: number = 0.016; // 60 FPS
+  protected readonly gravity: number = 9.8;
+  protected readonly jumpVelocity: number = 10.0;
+  protected readonly deltaTime: number = 0.016; // 60 FPS
     // day and night
-    private timeOfDay: number = 0.25; // Start at sunrise
-    private cycleSpeed: number = 0.01; // Control how fast time changes per frame
+    protected timeOfDay: number = 0.25; // Start at sunrise
+    protected cycleSpeed: number = 0.01; // Control how fast time changes per frame
   constructor(canvas: HTMLCanvasElement) {
     super(canvas);
 
@@ -75,7 +77,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     // Generate initial chunk layout
     this.generateInitialChunks();
   }
-  private updateDayNightCycle(): void {
+  protected updateDayNightCycle(): void {
     // Increment time based on speed
     this.timeOfDay += this.cycleSpeed;
 
@@ -137,7 +139,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   /**
    * Generate chunks in a 3x3 grid around the player
    */
-  private generateInitialChunks(): void {
+  protected generateInitialChunks(): void {
     const playerChunkX = Math.floor(this.playerPosition.x / this.chunkSize) * this.chunkSize;
     const playerChunkZ = Math.floor(this.playerPosition.z / this.chunkSize) * this.chunkSize;
     this.currentChunk = `${playerChunkX},${playerChunkZ}`;
@@ -160,7 +162,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   /**
    * Update chunks as player moves
    */
-  private updateChunks(): void {
+  protected updateChunks(): void {
     const playerChunkX = Math.floor(this.playerPosition.x / this.chunkSize) * this.chunkSize;
     const playerChunkZ = Math.floor(this.playerPosition.z / this.chunkSize) * this.chunkSize;
     const newCurrentChunk = `${playerChunkX},${playerChunkZ}`;
@@ -198,7 +200,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     }
   }
 
-  private checkThoroughCollision(position: Vec3): boolean {
+  protected checkThoroughCollision(position: Vec3): boolean {
     const playerRadius = 0.4;
     const playerHeight = 2.0;
     
@@ -324,7 +326,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   }
   
   
-  private checkCollision(position: Vec3): boolean {
+  protected checkCollision(position: Vec3): boolean {
     // Player is modeled as a cylinder with radius 0.4 and height 2
     const playerRadius = 0.4;
     const playerHeight = 2.0;
@@ -435,7 +437,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     
   }
   
-  private getTerrainHeightBelow(): number {
+  protected getTerrainHeightBelow(): number {
     const playerRadius = 0.4;
     let maxHeight = -Infinity;
     
@@ -477,7 +479,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     return maxHeight;
   }
 
-  private sampleTerrainHeight(x: number, z: number, currentMax: number): number {
+  protected sampleTerrainHeight(x: number, z: number, currentMax: number): number {
     const chunkX = Math.floor(x / this.chunkSize) * this.chunkSize;
     const chunkZ = Math.floor(z / this.chunkSize) * this.chunkSize;
     const chunkKey = `${chunkX},${chunkZ}`;
@@ -496,7 +498,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   /**
    * Sets up the blank cube drawing
    */
-  private initBlankCube(): void {
+  protected initBlankCube(): void {
     this.blankCubeRenderPass.setIndexBufferData(this.cubeGeometry.indicesFlat());
     this.blankCubeRenderPass.addAttribute("aVertPos",
       4,
@@ -578,7 +580,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     this.blankCubeRenderPass.setup();    
   }
 
-  private applyPhysics(terrainHeight: number, playerHeight: number): void {
+  protected applyPhysics(terrainHeight: number, playerHeight: number): void {
     const COLLISION_EPSILON = 0.05;
     const MAX_STEP_HEIGHT = 0.5; // Maximum height player can step up
     const MAX_VELOCITY = 20.0; // Cap maximum velocity to prevent extreme tunneling
@@ -835,7 +837,104 @@ export class MinecraftAnimation extends CanvasAnimation {
     // Update camera position with player position
     this.gui.getCamera().setPos(this.playerPosition);
   }
-  private getTerrainHeightAtPosition(x: number, z: number): number {
+
+  public interactWithBlock(isRemove: boolean = false): boolean {
+    // Get the camera for ray casting
+    const camera = this.gui.getCamera();
+    const cameraPos = camera.pos();
+    const cameraDir = camera.forward().negate();
+    
+    // Normalize direction
+    cameraDir.normalize();
+    
+    // Ray cast parameters
+    const maxDistance = 5.0; // Maximum reach distance
+    const stepSize = 0.1;    // Ray step size
+    
+    // Ray marching to find target block
+    for (let distance = 0; distance <= maxDistance; distance += stepSize) {
+      const rayPos = new Vec3([
+        cameraPos.x + cameraDir.x * distance,
+        cameraPos.y + cameraDir.y * distance,
+        cameraPos.z + cameraDir.z * distance
+      ]);
+      
+      // Find the chunk containing this point
+      const chunkX = Math.floor(rayPos.x / this.chunkSize) * this.chunkSize;
+      const chunkZ = Math.floor(rayPos.z / this.chunkSize) * this.chunkSize;
+      const chunkKey = `${chunkX},${chunkZ}`;
+      
+      // If chunk exists, check for a block
+      const chunk = this.chunks.get(chunkKey);
+      if (chunk) {
+        // Get terrain height at this position
+        const terrainHeight = chunk.getHeightAt(rayPos.x, rayPos.z);
+        
+        // If we hit a block (ray is below terrain)
+        if (terrainHeight >= 0 && rayPos.y <= terrainHeight) {
+          if (isRemove) {
+            // Remove block - create a small crater
+            this.modifyTerrain(rayPos.x, rayPos.z, -1, 1);
+            return true;
+          } else {
+            // Place block - create a small mound
+            this.modifyTerrain(rayPos.x, rayPos.z, 1, 1);
+            return true;
+          }
+        }
+      }
+    }
+    
+    return false; // No interaction happened
+  }
+  
+  // Helper method to modify terrain
+  protected modifyTerrain(centerX: number, centerZ: number, heightChange: number, radius: number): void {
+    // Find the chunk containing the center
+    const chunkX = Math.floor(centerX / this.chunkSize) * this.chunkSize;
+    const chunkZ = Math.floor(centerZ / this.chunkSize) * this.chunkSize;
+    const chunkKey = `${chunkX},${chunkZ}`;
+    
+    const chunk = this.chunks.get(chunkKey);
+    if (!chunk) return;
+    
+    // This is a simple implementation that just affects a circular area
+    // You may want to implement a more sophisticated method for terrain modification
+    
+    // Get the local coordinates within the chunk
+    const localX = Math.floor(centerX - (chunkX - chunk.getSize() / 2));
+    const localZ = Math.floor(centerZ - (chunkZ - chunk.getSize() / 2));
+    
+    // Get current height
+    const currentHeight = chunk.getHeightAt(centerX, centerZ);
+    
+    // For a simple implementation, we'll just recreate the chunk with modified terrain
+    // In a more advanced implementation, you'd want to update just the affected blocks
+    
+    // Signal that the chunk needs updating
+    // You'll need to add a method to handle rebuilding the chunk geometry
+    this.updateChunkGeometry(chunkKey);
+  }
+  
+  // Method to update chunk geometry after terrain modification
+  protected updateChunkGeometry(chunkKey: string): void {
+    // This method should rebuild the chunk's cube positions and block types
+    // The specific implementation depends on your chunk generation code
+    
+    // For a simple approach, you could just regenerate the chunk
+    const chunk = this.chunks.get(chunkKey);
+    if (!chunk) return;
+    
+    // Force regeneration of cube data
+    // You'll need to add this method to your Chunk class
+    // or find another way to update the chunk geometry
+    // chunk.regenerateCubes();
+    
+    // After modification, update player position if needed to avoid falling through or getting stuck
+  }
+
+
+  protected getTerrainHeightAtPosition(x: number, z: number): number {
     const chunkX = Math.floor(x / this.chunkSize) * this.chunkSize;
     const chunkZ = Math.floor(z / this.chunkSize) * this.chunkSize;
     const chunkKey = `${chunkX},${chunkZ}`;
@@ -899,7 +998,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     return bestHeight;
   }  
 
-  private checkSimpleCollision(position: Vec3): boolean {
+  protected checkSimpleCollision(position: Vec3): boolean {
     // Use a simpler collision model when walking
     const playerRadius = 0.4;
     const playerHeight = 2.0;
@@ -957,7 +1056,7 @@ export class MinecraftAnimation extends CanvasAnimation {
   }
 
 
-  private drawScene(x: number, y: number, width: number, height: number): void {
+  protected drawScene(x: number, y: number, width: number, height: number): void {
     const gl: WebGLRenderingContext = this.ctx;
     gl.viewport(x, y, width, height);
 
@@ -976,7 +1075,7 @@ export class MinecraftAnimation extends CanvasAnimation {
     return this.gui;
   }  
 
-  private getRobustTerrainHeightBelow(): number {
+  protected getRobustTerrainHeightBelow(): number {
     const playerRadius = 0.4;
     let maxHeight = -Infinity;
     
@@ -1076,6 +1175,8 @@ export class MinecraftAnimation extends CanvasAnimation {
 export function initializeCanvas(): void {
   const canvas = document.getElementById("glCanvas") as HTMLCanvasElement;
   /* Start drawing */
+  //const canvasAnimation = createVolumetricMinecraft(canvas);
   const canvasAnimation: MinecraftAnimation = new MinecraftAnimation(canvas);
+
   canvasAnimation.start();  
 }

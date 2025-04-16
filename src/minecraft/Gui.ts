@@ -183,6 +183,17 @@ export class GUI implements IGUI {
           this.animation.adjustCycleSpeed(0.005); // speed up
           break;
       }
+
+    
+    }
+    if (key.code === "KeyE") {
+      // E key to break blocks
+      (this.animation as MinecraftAnimation).interactWithBlock(true);
+    }
+    
+    if (key.code === "KeyQ") {
+      // Q key to place blocks
+      (this.animation as MinecraftAnimation).interactWithBlock(false);
     }
   }
   
@@ -198,6 +209,19 @@ export class GUI implements IGUI {
     }
   }  
 
+  public onMouseDown(event: MouseEvent): void {
+    if (event.button === 0) {
+      // Left-click to break blocks
+      (this.animation as MinecraftAnimation).interactWithBlock(true);
+    }
+    
+    if (event.button === 2) {
+      // Right-click to place blocks
+      (this.animation as MinecraftAnimation).interactWithBlock(false);
+    }
+  }
+  
+
   /**
    * Register all event listeners
    */
@@ -205,7 +229,10 @@ export class GUI implements IGUI {
     // Global key events - make sure to bind 'this'
     window.addEventListener("keydown", this.onKeydown.bind(this));
     window.addEventListener("keyup", this.onKeyup.bind(this));
-    
+    canvas.addEventListener("mousedown", this.onMouseDown.bind(this));
+  
+    // Prevent context menu on right-click
+    canvas.addEventListener("contextmenu", (event) => event.preventDefault());
     // Canvas focus events
     canvas.addEventListener("focus", () => {
       this.canvasHasFocus = true;

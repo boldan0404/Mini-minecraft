@@ -326,3 +326,4 @@ export const perlinCubeFSText = `
         gl_FragColor = vec4(clamp(ka + dot_nl * kd, 0.0, 1.0), 1.0);
     }
 `;
+export { volumetricCubeVSText, volumetricCubeFSText } from './UpdatedShaders.js';
