@@ -19,3 +19,5 @@ type of fractal generation by going to the "generate" method in FractalTree clas
 Then, comment out "  const canvasAnimation: MinecraftAnimation = new MinecraftAnimation(canvas);"
 and uncomment "  //const canvasAnimation = createVolumetricMinecraft(canvas);"
 If you now rerun the program, you will see caves and ores spawn in using additional textures and terrain opportunities.
+
+5. Finally, we implemented time-varying perlin noise, as is evident in the wind blowing the grass, trees strobing, bark modulating, water crystalling, and cobblestone shimmering
