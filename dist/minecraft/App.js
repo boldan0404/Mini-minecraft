@@ -399,7 +399,9 @@ export class MinecraftAnimation extends CanvasAnimation {
     applyPhysics(terrainHeight, playerHeight) {
         const COLLISION_EPSILON = 0.05;
         const MAX_STEP_HEIGHT = 0.5; // Maximum height player can step up
+        const MAX_SLOPE_ANGLE = 0.7; // Maximum slope angle player can walk (~40 degrees)
         const MAX_VELOCITY = 20.0; // Cap maximum velocity to prevent extreme tunneling
+        const SLOPE_TRANSITION_SMOOTHNESS = 0.15; // Controls how smooth slope transitions are (lower = smoother)
         // Cap max velocity to prevent extreme tunneling
         this.playerVelocity.y = Math.max(Math.min(this.playerVelocity.y, MAX_VELOCITY), -MAX_VELOCITY);
         // CRITICAL SAFETY CHECKS
@@ -422,10 +424,52 @@ export class MinecraftAnimation extends CanvasAnimation {
             this.playerVelocity.y = 0;
         }
         else {
+            // Check if we're walking down a slope that's gentle enough
+            const walkDirection = this.gui.walkDir();
+            if (walkDirection.length() > 0 && distanceToGround < 1.5) {
+                // Calculate where we'd be after taking a step
+                const WALK_SPEED = 0.2;
+                const stepX = this.playerPosition.x + walkDirection.x * WALK_SPEED;
+                const stepZ = this.playerPosition.z + walkDirection.z * WALK_SPEED;
+                // Get height at the target position
+                const stepTerrainHeight = this.getTerrainHeightAtPosition(stepX, stepZ);
+                if (stepTerrainHeight > -Infinity) {
+                    // Calculate the slope angle
+                    const heightDifference = terrainHeight - stepTerrainHeight;
+                    const horizontalDistance = WALK_SPEED;
+                    const slope = heightDifference / horizontalDistance;
+                    // If it's a downward slope and not too steep, allow sliding down it smoothly
+                    if (heightDifference > 0 && Math.abs(Math.atan(slope)) <= MAX_SLOPE_ANGLE) {
+                        this.isOnGround = true;
+                        // IMPROVED: Instead of applying a downward velocity instantly, 
+                        // apply a smooth transition based on slope steepness
+                        // This is key to remove the flickering
+                        const transitionSpeed = Math.min(heightDifference * SLOPE_TRANSITION_SMOOTHNESS, 0.3);
+                        // Calculate target Y position based on terrain and player height
+                        const targetY = stepTerrainHeight + playerHeight;
+                        // Smoothly interpolate toward the target height
+                        const currentY = this.playerPosition.y;
+                        this.playerPosition.y = currentY - (currentY - targetY) * transitionSpeed;
+                    }
+                    // If it's a very gentle downward slope, just stay grounded
+                    else if (heightDifference > 0 && heightDifference <= 1.0) {
+                        this.isOnGround = true;
+                    }
+                    // If it's a cliff, start falling
+                    else if (heightDifference > 1.0) {
+                        this.isOnGround = false;
+                        // Apply a small initial downward velocity
+                        if (this.playerVelocity.y >= 0) {
+                            this.playerVelocity.y = -0.5;
+                        }
+                    }
+                }
+            }
             // In air
-            this.isOnGround = false;
-            // Apply gravity
-            this.playerVelocity.y -= this.gravity * this.deltaTime;
+            if (!this.isOnGround) {
+                // Apply gravity
+                this.playerVelocity.y -= this.gravity * this.deltaTime;
+            }
         }
         if (!this.isOnGround || this.playerVelocity.y > 0) {
             // Calculate the intended movement for this frame
@@ -481,97 +525,102 @@ export class MinecraftAnimation extends CanvasAnimation {
             // Calculate target position
             const targetX = this.playerPosition.x + walkDirection.x * WALK_SPEED;
             const targetZ = this.playerPosition.z + walkDirection.z * WALK_SPEED;
-            // EDGE CASE FIX: Check if we're about to step off an edge
+            // IMPROVED: Check for downward slope and handle smoothly
             if (this.isOnGround) {
                 // Get the height at the target position
                 const targetHeight = this.getTerrainHeightAtPosition(targetX, targetZ);
-                // Check if there's a significant drop
-                const heightDifference = terrainHeight - targetHeight;
-                // If we'd fall more than 1 block and not a cliff (which would trigger falling)
-                // This is specifically targeting the case of stepping off the edge of a block
-                if (heightDifference > 0.5 && heightDifference <= 1.0) {
-                    // Pre-emptively get the heightmap below the edge
-                    const adjustedPos = new Vec3([
-                        this.playerPosition.x + walkDirection.x * 0.1, // Move just a tiny bit
-                        this.playerPosition.y,
-                        this.playerPosition.z + walkDirection.z * 0.1
-                    ]);
-                    // Check if taking a very small step would result in falling
-                    const probeHeight = this.getTerrainHeightAtPosition(adjustedPos.x, adjustedPos.z);
-                    // If even a small step would cause a drop, be more careful
-                    if (terrainHeight - probeHeight > 0.5) {
-                        // We're at an edge - move more carefully
-                        const safeSize = 0.05; // Much smaller steps
-                        let safeX = this.playerPosition.x;
-                        let safeZ = this.playerPosition.z;
-                        let stillOnGround = true;
-                        // Try incrementally moving toward target in small steps
-                        const numSteps = Math.ceil(WALK_SPEED / safeSize);
-                        for (let step = 1; step <= numSteps; step++) {
-                            const ratio = step / numSteps;
-                            const testX = this.playerPosition.x + walkDirection.x * WALK_SPEED * ratio;
-                            const testZ = this.playerPosition.z + walkDirection.z * WALK_SPEED * ratio;
-                            // Check height at this position
-                            const heightHere = this.getTerrainHeightAtPosition(testX, testZ);
-                            // If the height difference becomes too much, stop
-                            if (terrainHeight - heightHere > 0.5) {
-                                stillOnGround = false;
-                                break;
-                            }
-                            // This position is safe
-                            safeX = testX;
-                            safeZ = testZ;
+                if (targetHeight > -Infinity) {
+                    // Check if there's a drop
+                    const heightDifference = terrainHeight - targetHeight;
+                    // If it's a downward slope
+                    if (heightDifference > 0) {
+                        // If it's a small drop (1 block or less), handle it as a slope
+                        if (heightDifference <= 1.0) {
+                            // Allow movement to the target position
+                            this.playerPosition.x = targetX;
+                            this.playerPosition.z = targetZ;
+                            // IMPROVED: Smoothly transition down the slope
+                            // This removes the flickering by making the downward movement gradual
+                            const currentY = this.playerPosition.y;
+                            const idealY = targetHeight + playerHeight;
+                            // Calculate slope steepness factor (steeper = faster transition)
+                            const steepnessFactor = Math.min(heightDifference, 1.0);
+                            // Smoothly interpolate Y position
+                            // The smaller SLOPE_TRANSITION_SMOOTHNESS is, the smoother the transition
+                            this.playerPosition.y = currentY - (currentY - idealY) *
+                                (SLOPE_TRANSITION_SMOOTHNESS * steepnessFactor);
+                            // Mark as grounded to avoid gravity application
+                            this.isOnGround = true;
+                            // Update camera and continue processing other physics
                         }
-                        // Update position to furthest safe point
-                        this.playerPosition.x = safeX;
-                        this.playerPosition.z = safeZ;
-                        // If still on ground, update Y to match terrain
-                        if (stillOnGround) {
-                            const finalHeight = this.getTerrainHeightAtPosition(safeX, safeZ);
-                            if (finalHeight > -Infinity) {
-                                this.playerPosition.y = finalHeight + playerHeight;
+                        // If it's a larger drop, allow the player to walk off the edge
+                        else if (heightDifference > 1.0 && heightDifference <= 3.0) {
+                            // For medium drops, create a smoother transition
+                            this.playerPosition.x = targetX;
+                            this.playerPosition.z = targetZ;
+                            // Initially stay grounded but start a gentle fall
+                            this.isOnGround = true;
+                            this.playerVelocity.y = -1.0;
+                        }
+                        else {
+                            // For large drops, just fall normally
+                            this.playerPosition.x = targetX;
+                            this.playerPosition.z = targetZ;
+                            this.isOnGround = false;
+                            // Add a small initial downward velocity to start falling naturally
+                            if (this.playerVelocity.y >= 0) {
+                                this.playerVelocity.y = -0.5;
                             }
                         }
-                        // Skip the rest of movement code since we've handled it specially
-                        this.gui.getCamera().setPos(this.playerPosition);
-                        return;
                     }
-                }
-            }
-            // Normal movement proceeds if we're not at an edge
-            // Use different collision strategies based on if we're on ground or in air
-            if (this.isOnGround) {
-                // When on ground, use simpler collision for smooth walking
-                let canMoveX = true;
-                let canMoveZ = true;
-                // Check X movement
-                const testPosX = new Vec3([targetX, this.playerPosition.y, this.playerPosition.z]);
-                if (this.checkSimpleCollision(testPosX)) {
-                    canMoveX = false;
-                }
-                // Check Z movement
-                const testPosZ = new Vec3([this.playerPosition.x, this.playerPosition.y, targetZ]);
-                if (this.checkSimpleCollision(testPosZ)) {
-                    canMoveZ = false;
-                }
-                // Apply allowed movement
-                if (canMoveX) {
-                    this.playerPosition.x = targetX;
-                }
-                if (canMoveZ) {
-                    this.playerPosition.z = targetZ;
-                }
-                // If both blocked, try stepping up
-                if (!canMoveX && !canMoveZ) {
-                    const stepUpPos = new Vec3([
-                        targetX,
-                        this.playerPosition.y + MAX_STEP_HEIGHT,
-                        targetZ
-                    ]);
-                    if (!this.checkSimpleCollision(stepUpPos)) {
+                    // If it's an upward slope that's not too steep
+                    else if (heightDifference < 0 && heightDifference >= -MAX_STEP_HEIGHT) {
+                        // Allow movement up gentle slopes
                         this.playerPosition.x = targetX;
                         this.playerPosition.z = targetZ;
-                        this.playerPosition.y += MAX_STEP_HEIGHT;
+                        this.playerPosition.y = targetHeight + playerHeight;
+                    }
+                    // If it's flat terrain
+                    else if (heightDifference === 0) {
+                        // Standard flat movement
+                        this.playerPosition.x = targetX;
+                        this.playerPosition.z = targetZ;
+                    }
+                    // Otherwise, use collision detection for steeper terrain
+                    else if (heightDifference < -MAX_STEP_HEIGHT) {
+                        // Use the regular collision system for steep upward slopes
+                        let canMoveX = true;
+                        let canMoveZ = true;
+                        // Check X movement
+                        const testPosX = new Vec3([targetX, this.playerPosition.y, this.playerPosition.z]);
+                        if (this.checkSimpleCollision(testPosX)) {
+                            canMoveX = false;
+                        }
+                        // Check Z movement
+                        const testPosZ = new Vec3([this.playerPosition.x, this.playerPosition.y, targetZ]);
+                        if (this.checkSimpleCollision(testPosZ)) {
+                            canMoveZ = false;
+                        }
+                        // Apply allowed movement
+                        if (canMoveX) {
+                            this.playerPosition.x = targetX;
+                        }
+                        if (canMoveZ) {
+                            this.playerPosition.z = targetZ;
+                        }
+                        // If both blocked, try stepping up
+                        if (!canMoveX && !canMoveZ) {
+                            const stepUpPos = new Vec3([
+                                targetX,
+                                this.playerPosition.y + MAX_STEP_HEIGHT,
+                                targetZ
+                            ]);
+                            if (!this.checkSimpleCollision(stepUpPos)) {
+                                this.playerPosition.x = targetX;
+                                this.playerPosition.z = targetZ;
+                                this.playerPosition.y += MAX_STEP_HEIGHT;
+                            }
+                        }
                     }
                 }
             }
@@ -596,7 +645,7 @@ export class MinecraftAnimation extends CanvasAnimation {
                 }
             }
         }
-        // PART 3: Final ground adjustment
+        // PART 3: Final ground adjustment - IMPROVED to be smoother
         if (this.isOnGround) {
             const newTerrainHeight = this.getTerrainHeightBelow();
             if (newTerrainHeight > -Infinity) {
@@ -606,8 +655,20 @@ export class MinecraftAnimation extends CanvasAnimation {
                     this.isOnGround = false;
                 }
                 else {
-                    // Normal ground, adjust height to terrain
-                    this.playerPosition.y = newTerrainHeight + playerHeight;
+                    // IMPROVED: Instead of instantly snapping to terrain height,
+                    // gradually adjust height for smoother transitions
+                    const currentY = this.playerPosition.y;
+                    const targetY = newTerrainHeight + playerHeight;
+                    // Only apply smoothing if we're moving downward
+                    if (currentY > targetY) {
+                        // Calculate a smooth step down
+                        const smoothFactor = 0.3; // Controls smoothness of adjustment
+                        this.playerPosition.y = currentY - (currentY - targetY) * smoothFactor;
+                    }
+                    else {
+                        // For upward movement, still snap to terrain to avoid floating
+                        this.playerPosition.y = targetY;
+                    }
                 }
             }
         }
