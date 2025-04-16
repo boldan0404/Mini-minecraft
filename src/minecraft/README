@@ -1,15 +1,21 @@
-
-
+Surya Chokkar (sc62736) and Ann Yue
 
 Extra Credit:
 
 1. Fractal Trees: The trees are generated using the class Fractal Tree. We implemented several different 
 types of fractal trees, so we were hoping to get beyond the given extra credit if that is allowed. You can try each different
-type of fractal generation by changing Line _________. The different types of fractals are:
-
-
-
+type of fractal generation by going to the "generate" method in FractalTree class in Chunk.ts. By changing Line 882 "this.generatePythagorasTree(rng);" to any of these  different types of fractals: 
+    //       this.generatePythagorasTree(rng);
+    //       this.generateKochCurve(rng);
+    //       this.generateSierpinskiTriangle(rng);
+    //       this.generateDragonCurve(rng);
+    //       this.generateBranchingFractal(rng);
 
 2. We also implemented a day and night cycle, which can be toggled to faster and slower by using the "[" and "]" keys.
 
 3. We have bodies of water implemented but didn't finish the reflective rendering portion
+
+4. We also implemented true volumetric terrain, you can toggle this mode on by going to the "initializeCanvas" method in App.ts. 
+Then, comment out "  const canvasAnimation: MinecraftAnimation = new MinecraftAnimation(canvas);"
+and uncomment "  //const canvasAnimation = createVolumetricMinecraft(canvas);"
+If you now rerun the program, you will see caves and ores spawn in using additional textures and terrain opportunities.
